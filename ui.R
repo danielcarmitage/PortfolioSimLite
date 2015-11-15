@@ -1,0 +1,183 @@
+library(shiny)
+library(shinythemes)
+library(shinyBS)
+require(rCharts)
+
+shinyUI(navbarPage(title = "PortfolioSim",
+                   inverse = TRUE,
+                   collapsible = TRUE,
+                   
+                   tabPanel("About",
+                            div(h1(strong("Portfolio Simulator and Data Source")),br(), h3("Welcome to PortfolioSim! You can use this site to:", br(), br(),"1) Simulate a portfolio of stocks listed on North American exchanges", br(), "2) Get data for several financial instruments and make general data searches", br(), br(),br(),br(),"Found a bug? Have a feature request? Contact me at", em("d.armitage@queensu.ca"), br(), br(), "All of the data is pulled from", a("Quandl.", href = "http://quandl.com", target = "_blank")), width = "400px", align = "center")),
+                   
+                   navbarMenu("Portofolio Simulator",
+                              tabPanel("Build a Portfolio",
+                                       fluidRow(column(3,
+                                                       uiOutput("builder_symbol_select"),
+                                                       dateRangeInput("builder_date_range", label = NULL, start = "2014-01-01", end = Sys.Date(), width = "100%"),
+                                                       numericInput("builder_position_size", label = NULL,value = 1000, width = "100%"),
+                                                       bsButton("builder_get_symbols", "Get Data", style = "primary", block = T),
+                                                       tags$hr(),
+                                                       uiOutput("builder_asset_list"),
+                                                       conditionalPanel( condition = "typeof input.builder_asset_list != \"undefined\"",
+                                                                         column(6, bsButton("builder_clear_selected", "Clear Selected", style = "primary",  block = T)),
+                                                                         column(6, bsButton("builder_clear_all", "Clear All", style = "primary", block = T)),
+                                                                         br(),
+                                                                         br(),
+                                                                         div(bsButton("builder_update", "Refresh Graph", style = "primary"), align = "center"),
+                                                                         bsTooltip(id = "builder_update", placement = "bottom", title = "Graph frozen? Press to refresh.")),
+                                                       conditionalPanel( "input.builder_tab == \"Data\"",
+                                                                         tags$hr(),                                                                        
+                                                                         div(downloadButton("builder_export_csv", label="Export CSV"), align = "center"))
+                                       ),
+                                       column(9,                  
+                                              tabsetPanel(type = "tabs", id = "builder_tab",                                       
+                                                          tabPanel("Simulator",
+                                                                   icon = icon("line-chart"),
+                                                                   plotOutput("builder_plot",
+                                                                              hover = hoverOpts(
+                                                                                id = "builder_hover",
+                                                                                delay = 10,
+                                                                                nullOutside = TRUE
+                                                                              )),
+                                                                   conditionalPanel(condition = "typeof input.builder_asset_list != \"undefined\"",
+                                                                                    bsButton("builder_cluster", "Cluster Data", style = "primary", size = "extra-small", type = "toggle", value = F),
+                                                                                    bsButton("builder_daily_or_acc", "Daily PnL", style = "primary", size = "extra-small", type = "toggle", value = F),
+                                                                                    bsButton("builder_portfolio_composition", "Portfolio Composition", style = "primary", size = "extra-small", type = "toggle", value = F, icon = icon("pie-chart")),
+                                                                                    textOutput("builder_hover_info", inline = T)),
+                                                                   showOutput("builder_pie", "nvd3")
+                                                          ),
+                                                          
+                                                          tabPanel("Price/Volume", icon = icon("bar-chart"),
+                                                                   div(
+                                                                     plotOutput("builder_pv_chart", height = 800),
+                                                                     align = "bottom")),
+                                                          tabPanel("Data",icon = icon("table"),
+                                                                   #                                                    br(),
+                                                                   dataTableOutput("builder_pv_table"))
+                                              )))
+                              ),
+                              
+                              tabPanel("Current Portfolio",
+                                       div(h1(passwordInput("current_password", label = "Enter Password:", value = ""),
+                                              bsButton("current_password_button", " Load Current Portfolio", disabled = T, icon = icon("lock"), style = "danger", block = F)
+                                       ), align = "center"))
+                   ),
+                   
+                   navbarMenu("All Data",
+                              tabPanel("Raw Data",
+                                       tabsetPanel(type = "tabs", id = "raw_tab",
+                                                   tabPanel("Search Results",
+                                                            icon = icon("search"),
+                                                            div(
+                                                              br(),
+                                                              textInput("raw_search", "Enter Key Words:", value = NULL),
+                                                              bsButton("raw_search_button", "Search", style = "primary", icon = icon("search")), align = "center"),
+                                                            tags$hr(),
+                                                            dataTableOutput("raw_search_results")),
+                                                   tabPanel("Data",
+                                                            icon = icon("table"),
+                                                            div(
+                                                              br(),
+                                                              textInput("raw_download", "Enter ID:"),
+                                                              bsButton("raw_download_button", "Get Data", style = "primary"), 
+                                                              downloadButton("raw_export_csv", "Export CSV"),align = "center"),
+                                                            tags$hr(),
+                                                            dataTableOutput("raw_download_results")),
+                                                   tabPanel("Futures",
+                                                            icon = icon("bank"),
+                                                            br(),
+                                                            fluidRow(
+                                                              column(6, offset = 3,                                                  
+                                                                     uiOutput("raw_futures_symbol_select"),
+                                                                     uiOutput("raw_futures_month_select"),
+                                                                     numericInput("raw_futures_year_select", "Select Year:", value = 2015, width = "100%"),
+                                                                     div(bsButton("raw_futures_download_button", "Get Data", style = "primary", type = "toggle"),
+                                                                         downloadButton("raw_futures_export_csv", "Export CSV"), align = "center"))),
+                                                            tags$hr(),
+                                                            dataTableOutput("raw_futures_download_results"))
+                                       )),
+                              tabPanel("Equities",
+                                       fluidRow(column(3,
+                                                       uiOutput("equity_symbol_select"),
+                                                       dateRangeInput("equity_date_range", label = NULL, start = Sys.Date() - 365, end = Sys.Date(), width = "100%"),
+                                                       bsButton("equity_get_symbols", "Get Data", style = "primary", block = T),
+                                                       tags$hr(),
+                                                       uiOutput("equity_asset_list"),
+                                                       conditionalPanel( condition = "typeof input.equity_asset_list != \"undefined\"",
+                                                                         column(6, bsButton("equity_clear_selected", "Clear Selected", style = "primary",  block = T)),
+                                                                         column(6, bsButton("equity_clear_all", "Clear All", style = "primary", block = T)),
+                                                                         br(),
+                                                                         br(),
+                                                                         div(bsButton("equity_update", "Refresh Graph", style = "primary"), align = "center"),
+                                                                         bsTooltip(id = "equity_update", placement = "bottom", title = "Data not updating? Press to refresh.")),
+                                                       conditionalPanel( "input.equity_tab == \"Data\"",
+                                                                         tags$hr(),                                                                        
+                                                                         div(downloadButton("equity_export_csv", label="Export CSV"), align = "center"))
+                                       ),
+                                       column(9,                  
+                                              tabsetPanel(type = "tabs", id = "equity_tab",                                                                                         
+                                                          tabPanel("Price/Volume", icon = icon("bar-chart"),
+                                                                   div(
+                                                                     plotOutput("equity_pv_chart", height = 800),
+                                                                     align = "bottom")),
+                                                          tabPanel("Data", icon = icon("table"),
+                                                                   dataTableOutput("equity_pv_table"))
+                                              )))),
+                              tabPanel("Futures",
+                                       fluidRow(column(3,
+                                                       uiOutput("futures_symbol_select"),
+                                                       dateRangeInput("futures_date_range", label = NULL, start = Sys.Date() - 365, end = Sys.Date(), width = "100%"),
+                                                       bsButton("futures_get_symbols", "Get Data", style = "primary", block = T),
+                                                       tags$hr(),
+                                                       uiOutput("futures_asset_list"),
+                                                       conditionalPanel( condition = "typeof input.futures_asset_list != \"undefined\"",
+                                                                         column(6, bsButton("futures_clear_selected", "Clear Selected", style = "primary",  block = T)),
+                                                                         column(6, bsButton("futures_clear_all", "Clear All", style = "primary", block = T)),
+                                                                         br(),
+                                                                         br(),
+                                                                         div(bsButton("futures_update", "Refresh Graph", style = "primary"), align = "center"),
+                                                                         bsTooltip(id = "futures_update", placement = "bottom", title = "Data not updating? Press to refresh.")),
+                                                       conditionalPanel( "input.futures_tab == \"Data\"",
+                                                                         tags$hr(),                                                                        
+                                                                         div(downloadButton("futures_export_csv", label="Export CSV"), align = "center"))
+                                       ),
+                                       column(9,                  
+                                              tabsetPanel(type = "tabs", id = "futures_tab",                                                                                         
+                                                          tabPanel("Price/Volume", icon = icon("bar-chart"),
+                                                                   div(
+                                                                     plotOutput("futures_pv_chart", height = 800),
+                                                                     align = "bottom")),
+                                                          tabPanel("Data", icon = icon("table"),
+                                                                   dataTableOutput("futures_pv_table"))
+                                              )))),
+                              tabPanel("FX",
+                                       fluidRow(column(3,
+#                                                        uiOutput("fx_symbol_select"),
+                                                       textInput("fx_symbol_select", label = "Select Currency:", value = "USDCAD", width = "100%"),
+                                                       dateRangeInput("fx_date_range", label = NULL, start = Sys.Date() - 365, end = Sys.Date(), width = "100%"),
+                                                       bsButton("fx_get_symbols", "Get Data", style = "primary", block = T),
+                                                       tags$hr(),
+                                                       uiOutput("fx_asset_list"),
+                                                       conditionalPanel( condition = "typeof input.fx_asset_list != \"undefined\"",
+                                                                         column(6, bsButton("fx_clear_selected", "Clear Selected", style = "primary",  block = T)),
+                                                                         column(6, bsButton("fx_clear_all", "Clear All", style = "primary", block = T)),
+                                                                         br(),
+                                                                         br(),
+                                                                         div(bsButton("fx_update", "Refresh Graph", style = "primary"), align = "center"),
+                                                                         bsTooltip(id = "fx_update", placement = "bottom", title = "Data not updating? Press to refresh.")),
+                                                       conditionalPanel( "input.fx_tab == \"Data\"",
+                                                                         tags$hr(),                                                                        
+                                                                         div(downloadButton("fx_export_csv", label="Export CSV"), align = "center"))
+                                       ),
+                                       column(9,                  
+                                              tabsetPanel(type = "tabs", id = "fx_tab",                                                                                         
+                                                          tabPanel("Rates", icon = icon("bar-chart"),
+                                                                   div(
+                                                                     plotOutput("fx_rate_chart"),
+                                                                     align = "bottom")),
+                                                          tabPanel("Data", icon = icon("table"),
+                                                                   dataTableOutput("fx_rate_table"))
+                                              ))))
+                              
+                   )))
